@@ -34,3 +34,12 @@ Have installed:
 
 * `git clone https://github.com/bueler/p4pdes.git`
 
+### Follow along
+
+* Build and check basic debuggable petsc
+* Build and check basic optimized petsc
+* Consider additional packages
+* make streams
+* Start with Ch1 of Beuler (build parallel e)
+* Discuss homework
+
