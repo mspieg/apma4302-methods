@@ -27,7 +27,7 @@ Have installed:
 ### clone petsc repository from gitlab
 * Instructions at https://petsc.org/release/install/download/#recommended-obtain-release-version-with-git)
 
-### clone (or fork) my apma4302 repository from gitlab
+### clone (or fork) my apma4302 repository from github
 
 * `git clone https://github.com/mspieg/apma4302-methods.git`
 
