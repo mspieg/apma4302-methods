@@ -12,6 +12,7 @@ Have installed:
     * homebrew on macs
     * apt on linux machines
 * Vscode
+* XQuartz (X11 server) https://www.xquartz.org/
 * Setup your private course repository on github (or gitlab) with the name `apma4302_<uni>` and add me as a collaborator.
 
 ### install key packages
