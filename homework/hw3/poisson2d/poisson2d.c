@@ -16,7 +16,7 @@ int main(int argc,char **args) {
     Mat           A;
     Vec           b,u,uexact, rankmap, f;
     KSP           ksp;
-    PetscReal     errnorm;
+    PetscReal     errnorm, uexactnorm;
     DMDALocalInfo info;
     PetscMPIInt   rank;
     PetscViewer     viewer;
@@ -75,13 +75,14 @@ int main(int argc,char **args) {
     PetscCall(PetscViewerDestroy(&viewer));
 
     // report on grid and numerical error
+    PetscCall(VecNorm(uexact,NORM_2,&uexactnorm));
     PetscCall(VecAXPY(u,-1.0,uexact));    // u <- u + (-1.0) uxact
-    PetscCall(VecNorm(u,NORM_INFINITY,&errnorm));
+    PetscCall(VecNorm(u,NORM_2,&errnorm));
     PetscCall(DMDAGetLocalInfo(da,&info));
     PetscCall(PetscPrintf(PETSC_COMM_WORLD,
-                "on %d x %d grid:  error |u-uexact|_inf = %g\n",
-                info.mx,info.my,errnorm));
-
+                "on %d x %d grid:  rel_error |u-uexact|_2/|uexact|_2 = %g\n",
+                info.mx,info.my,errnorm/uexactnorm));
+    
     // clean up and finalize 
     PetscCall(VecDestroy(&u));
     PetscCall(VecDestroy(&uexact));
