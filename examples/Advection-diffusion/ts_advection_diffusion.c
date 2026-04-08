@@ -26,8 +26,8 @@
 #include <petscdm.h>
 #include <petscdmda.h>
 
-typedef enum {CENTERED, UPWIND, THIRDORDER} AdvectionScheme;
-static const char* AdvectionSchemes[] = {"centered","upwind","thirdorder",
+typedef enum {CENTERED, UPWIND, THIRDORDER, VANLEER, KOREN} AdvectionScheme;
+static const char* AdvectionSchemes[] = {"centered","upwind","thirdorder","vanleer","koren",
                                      "AdvectionScheme", "", NULL};
 
 
@@ -39,6 +39,25 @@ typedef struct {
   PetscReal x0, sigma; /* IC parameters, not used in this example but could be set via options */
   AdvectionScheme scheme; /* type of advection scheme */
 } AppCtx;
+
+/* van Leer (1974) limiter is formula (1.11) in section III.1 of
+Hundsdorfer & Verwer (2003) */
+static PetscReal vanleer(PetscReal theta) {
+    const PetscReal abstheta = PetscAbsReal(theta);
+    return 0.5 * (theta + abstheta) / (1.0 + abstheta);
+}
+
+/* Koren (1993) limiter is formula (1.7) in section III.1 of
+Hundsdorfer & Verwer (2003) */
+static PetscReal koren(PetscReal theta) {
+    const PetscReal z = (1.0/3.0) + (1.0/6.0) * theta;
+    return PetscMax(0.0, PetscMin(1.0, PetscMin(z, theta)));
+}
+
+static PetscReal theta(PetscReal *u, PetscInt i) {
+  const PetscReal epsilon = 1e-10; /* small number to prevent division by zero */
+  return (u[i] - u[i-1] + epsilon)/(u[i+1] -u[i] + epsilon);
+}
 
 // Routines to set exact solution and initial conditions for a Gaussian pulse advecting with speed a and diffusing with diffusivity nu, in a periodic domain of length L.
 
@@ -115,12 +134,13 @@ static PetscErrorCode RHSFunction(TS ts, PetscReal t, Vec U, Vec R, void *ctx)
   DM                 da  = app->da;
   DMDALocalInfo      info;
   Vec                Uloc;
-  const PetscScalar *u;   /* local array including ghosts */
+  PetscScalar *u;   /* local array including ghosts */
   PetscScalar       *r;   /* global array (owned part only) */
   PetscInt           i;
   const PetscReal    a  = app->a, dx = app->dx;
   PetscReal         a_pos = PetscMax(a,0.0), a_neg = PetscMin(a,0.0); 
   PetscReal         f_pos, f_neg;
+  PetscReal         th, thp, psi, psip;
   AdvectionScheme     scheme = app->scheme;
 
   PetscFunctionBeginUser;
@@ -162,6 +182,44 @@ static PetscErrorCode RHSFunction(TS ts, PetscReal t, Vec U, Vec R, void *ctx)
         f_neg = f_pos; /* shift for next iteration */ 
     }
   } 
+  else if (scheme == KOREN) {
+    i = info.xs;
+    th = theta( u , i-1);
+    thp = theta( u, i);
+    psi = koren(th);
+    psip = koren(1./thp);
+    f_neg = a_pos * ((1-psi)*u[i-1] + psi*u[i] )+
+           a_neg *  ((1-psip)*u[i] + psip*u[i-1]); /* flux at i-1/2 */
+    for (i = info.xs; i < info.xs + info.xm; i++) {
+        th = thp;
+        thp = theta(u, i+1);
+        psi = koren(th);
+        psip = koren(1./thp);
+        f_pos = a_pos * ((1-psi)*u[i] + psi*u[i+1] )+
+                a_neg *  ((1-psip)*u[i+1] + psip*u[i]);  /* flux at i+1/2 */
+        r[i] =  -(f_pos - f_neg) / dx;
+        f_neg = f_pos; /* shift for next iteration */
+    }
+  }
+  else if (scheme == VANLEER) {
+    i = info.xs;
+    th = theta( u , i-1);
+    thp = theta( u, i);
+    psi = vanleer(th);
+    psip = vanleer(1./thp);
+    f_neg = a_pos * ((1-psi)*u[i-1] + psi*u[i] )+
+           a_neg *  ((1-psip)*u[i] + psip*u[i-1]); /* flux at i-1/2 */
+    for (i = info.xs; i < info.xs + info.xm; i++) {
+        th = thp;
+        thp = theta(u, i+1);
+        psi = vanleer(th);
+        psip = vanleer(1./thp);
+        f_pos = a_pos * ((1-psi)*u[i] + psi*u[i+1] )+
+                a_neg *  ((1-psip)*u[i+1] + psip*u[i]);  /* flux at i+1/2 */
+        r[i] =  -(f_pos - f_neg) / dx;
+        f_neg = f_pos; /* shift for next iteration */
+    }
+  }
   else {
     /* default to centered if invalid scheme */
     for (i = info.xs; i < info.xs + info.xm; i++) {
@@ -275,11 +333,8 @@ int main(int argc, char **argv)
   PetscCall(PetscOptionsGetEnum(NULL,NULL,"-scheme", AdvectionSchemes, (PetscEnum*)&app.scheme, NULL));
   
   // determine stencil width based on advection scheme
-  if (app.scheme == CENTERED) {
-    stencil_width = 1; /* only immediate neighbors needed for centered differences */
-  } else if (app.scheme == UPWIND) {
-    stencil_width = 1; /* only immediate neighbors needed for upwind */
-  } else if (app.scheme == THIRDORDER) {
+  stencil_width = 1; /* default for everyone but THIRDORDER */
+  if (app.scheme == THIRDORDER) {
     stencil_width = 2; /* need two neighbors on each side for third-order upwind-biased */
   }
   /* 1D DMDA with 1 dof/node, stencil width 1.
