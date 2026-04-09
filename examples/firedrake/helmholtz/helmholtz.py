@@ -46,18 +46,18 @@
 # However we wish to employ this as an example for the finite element
 # method, so lets go ahead and produce a numerical solution.
 #
-# First, we always need a mesh. Let's have a :math:`10\times10` element unit square::
+# First, we always need a mesh. Let's have a :math:`20\times20` quadrilateral element unit square::
 
 from firedrake import *
 
-N = 10  
+N = 20  
 mesh = UnitSquareMesh(N, N, quadrilateral=True)
 
 # We need to decide on the function space in which we'd like to solve the
-# problem. Let's use piecewise linear functions continuous between
+# problem. Let's use piecewise  Q1 linear functions continuous between
 # elements::
 
-V = FunctionSpace(mesh, "CG", 2)
+V = FunctionSpace(mesh, "CG", 1)
 
 # We'll also need the test and trial functions corresponding to this
 # function space::
@@ -145,6 +145,9 @@ except Exception as e:
 # :math:`L_2` norm of the error in the solution::
 
 f.interpolate(cos(x*pi*2)*cos(y*pi*2))
-print(sqrt(assemble(dot(u - f, u - f) * dx)))
+abs_error = sqrt(assemble(dot(u - f, u - f) * dx))
+rel_error = abs_error / sqrt(assemble(dot(f, f) * dx))
+print(f'\nL2 error: {abs_error}')
+print(f'Relative L2 error: {rel_error}')
 
 # A python script version of this demo can be found :demo:`here <helmholtz.py>`.
