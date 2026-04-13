@@ -28,41 +28,48 @@
 #    \int_\Omega \nabla u\cdot\nabla v  + uv\ \mathrm{d}x = \int_\Omega
 #    vf\ \mathrm{d}x + \cancel{\int_\Gamma v \nabla u \cdot \vec{n} \mathrm{d}s}
 #
-# Note that the boundary condition has been enforced weakly by removing
-# the surface term resulting from the integration by parts.
-#
+# Here we assume homogeneous Dirichlet boundary conditions, 
+# 
+# 
 # We can choose the function :math:`f`, so we take:
 #
 # .. math::
 #
-#    f = (1.0 + 8.0\pi^2)\cos(2\pi x)\cos(2\pi y)
+#    f = (1.0 + 8.0\pi^2)\sin(2\pi x)\sin(2\pi y)
 #
 # which conveniently yields the analytic solution:
 #
 # .. math::
 #
-#    u = \cos(2\pi x)\cos(2\pi y)
+#    u = \sin(2\pi x)\sin(2\pi y)
 #
 # However we wish to employ this as an example for the finite element
 # method, so lets go ahead and produce a numerical solution.
 #
-# First, we always need a mesh. Let's have a :math:`20\times20` quadrilateral element unit square::
+# First, we always need a mesh. Let's have a multi-level quadrilateral element unit square::
 
+import json
 from firedrake import *
 
-N = 20  
-mesh = UnitSquareMesh(N, N, quadrilateral=True)
+# set up mesh hieararchy for geometric multigrid
+ 
+N = 4
+levels = 4
+coarse_mesh = UnitSquareMesh(N, N, quadrilateral=True)    
+hierarchy = MeshHierarchy(coarse_mesh, levels) 
+mesh = hierarchy[-1]
+N_fine = N * 2**levels 
 
 # We need to decide on the function space in which we'd like to solve the
-# problem. Let's use piecewise  Q1 linear functions continuous between
+# problem. Let's use piecewise  Qp linear functions continuous between
 # elements::
-
-V = FunctionSpace(mesh, "CG", 1)
+p = 2
+V = FunctionSpace(mesh, "CG", p)
 
 # We'll also need the test and trial functions corresponding to this
 # function space::
 
-u = Function(V)
+u = Function(V, name="u")
 v = TestFunction(V)
 
 # We declare a function over our function space and give it the
@@ -70,80 +77,45 @@ v = TestFunction(V)
 
 f = Function(V)
 x, y = SpatialCoordinate(mesh)
-f.interpolate((1+8*pi*pi)*cos(x*pi*2)*cos(y*pi*2))
+f.interpolate((1+8*pi*pi)*sin(x*pi*2)*sin(y*pi*2))
 
 # We can now define the weak form of the residual function F(u)::
 
 F = (inner(grad(u), grad(v)) + inner(u, v)) * dx - inner(f, v) * dx
 
+# For this solution we will need to implement dirichlet boundary conditions, so we set the value of the solution to be zero on the boundary of the domain::
+
+bc = DirichletBC(V, 0, "on_boundary")
+
 # set the petsc solver parameters to use the nonlinear solver SNES with a direct LU factorisation preconditioner. We also set some additional parameters to monitor the convergence of the nonlinear and linear solvers and to set the relative tolerance for convergence. For more details on how to specify solver parameters, see the section of the manual on :doc:`solving PDEs <../solving-interface>`.
 
-parameters = {'ksp_type': 'preonly', 
-              'pc_type': 'lu',
+parameters = {'ksp_type': 'cg', 
+              'pc_type': 'mg',
               'pc_factor_mat_solver_type': 'mumps',
               'snes_monitor': None,
               'snes_converged_reason': None,
               'snes_rtol': 1e-6,
-              'snes_view': None,
               'ksp_monitor': None,
               'ksp_converged_reason': None,
               'ksp_rtol': 1e-6}
 
-solve(F == 0, u, solver_parameters=parameters)
+print("\nSolving {}x{} non-Linear system in Q{} with parameters: {}".
+      format(N_fine, N_fine, p, json.dumps(parameters, indent=4)))
 
+solve(F == 0, u, solver_parameters=parameters, bcs=bc)
 
-# For more details on how to specify solver parameters, see the section
-# of the manual on :doc:`solving PDEs <../solving-interface>`.
-#
-# Next, we might want to look at the result, so we output our solution
-# to a file::
+# Print the absolute and relative L2 error of the solution compared to the known analytic solution.
+#  We can compute the L2 error by integrating the square of the difference between the numerical and analytic solutions over the domain, and then taking the square root. The relative L2 error is computed by dividing the absolute L2 error by the L2 norm of the analytic solution.
 
-VTKFile("helmholtz.pvd").write(u)
-
-# This file can be visualised using `paraview <http://www.paraview.org/>`__.
-#
-# We could use the built-in plotting functions of firedrake by calling
-# :func:`tripcolor <firedrake.pyplot.tripcolor>` to make a pseudo-color plot.
-# Before that, matplotlib.pyplot should be installed and imported::
-
-try:
-  import matplotlib.pyplot as plt
-except:
-  warning("Matplotlib not imported")
-
-try:
-  from firedrake.pyplot import tripcolor, tricontour
-  fig, axes = plt.subplots()
-  colors = tripcolor(u, axes=axes)
-  fig.colorbar(colors)
-except Exception as e:
-  warning("Cannot plot figure. Error msg: '%s'" % e)
-
-# The plotting functions in Firedrake mimic those of matplotlib; to produce a
-# contour plot instead of a pseudocolor plot, we can call
-# :func:`tricontour <firedrake.pyplot.tricontour>` instead::
-
-try:
-  fig, axes = plt.subplots()
-  contours = tricontour(u, axes=axes)
-  fig.colorbar(contours)
-except Exception as e:
-  warning("Cannot plot figure. Error msg: '%s'" % e)
-
-# Don't forget to show the image::
-
-try:
-  plt.show()
-except Exception as e:
-  warning("Cannot show figure. Error msg: '%s'" % e)
-
-# Alternatively, since we have an analytic solution, we can check the
-# :math:`L_2` norm of the error in the solution::
-
-f.interpolate(cos(x*pi*2)*cos(y*pi*2))
+f.interpolate(sin(x*pi*2)*sin(y*pi*2))
 abs_error = sqrt(assemble(dot(u - f, u - f) * dx))
 rel_error = abs_error / sqrt(assemble(dot(f, f) * dx))
 print(f'\nL2 error: {abs_error}')
 print(f'Relative L2 error: {rel_error}')
 
-# A python script version of this demo can be found :demo:`here <helmholtz.py>`.
+
+# Next, we might want to look at the result, so we output our solution
+# to a file::
+
+VTKFile("helmholtz_snes.pvd").write(u)
+

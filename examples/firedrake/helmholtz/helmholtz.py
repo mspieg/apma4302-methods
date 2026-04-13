@@ -49,15 +49,17 @@
 # First, we always need a mesh. Let's have a :math:`20\times20` quadrilateral element unit square::
 
 from firedrake import *
+import json
+
 
 N = 20  
 mesh = UnitSquareMesh(N, N, quadrilateral=True)
 
 # We need to decide on the function space in which we'd like to solve the
-# problem. Let's use piecewise  Q1 linear functions continuous between
+# problem. Let's use piecewise  Qp linear functions continuous between
 # elements::
-
-V = FunctionSpace(mesh, "CG", 1)
+p = 1
+V = FunctionSpace(mesh, "CG", p)
 
 # We'll also need the test and trial functions corresponding to this
 # function space::
@@ -81,7 +83,7 @@ L = inner(f, v) * dx
 # Finally we solve the equation. We redefine `u` to be a function
 # holding the solution::
 
-u = Function(V)
+u = Function(V, name="u")
 
 # Since we know that the Helmholtz equation is
 # symmetric, we instruct PETSc to employ the conjugate gradient method
@@ -91,10 +93,21 @@ parameters = {'ksp_type': 'cg',
               'pc_type': 'gamg',
               'ksp_monitor': None,
               'ksp_converged_reason': None,
-              'ksp_rtol': 1e-8,
-              'ksp_view': None}
+              'ksp_rtol': 1e-8}
+
+print("\nSolving {}x{} linear system on Q{} with parameters: {}".
+      format(N, N, p, json.dumps(parameters, indent=4)))
 
 solve(a == L, u, solver_parameters=parameters)
+
+# since we have an analytic solution, we can check the
+# :math:`L_2` norm of the error in the solution::
+
+f.interpolate(cos(x*pi*2)*cos(y*pi*2))
+abs_error = sqrt(assemble(dot(u - f, u - f) * dx))
+rel_error = abs_error / sqrt(assemble(dot(f, f) * dx))
+print(f'\nL2 error: {abs_error}')
+print(f'Relative L2 error: {rel_error}')
 
 # For more details on how to specify solver parameters, see the section
 # of the manual on :doc:`solving PDEs <../solving-interface>`.
@@ -104,50 +117,44 @@ solve(a == L, u, solver_parameters=parameters)
 
 VTKFile("helmholtz.pvd").write(u)
 
-# This file can be visualised using `paraview <http://www.paraview.org/>`__.
+# This file can also be visualised using `paraview <http://www.paraview.org/>`__.
 #
 # We could use the built-in plotting functions of firedrake by calling
 # :func:`tripcolor <firedrake.pyplot.tripcolor>` to make a pseudo-color plot.
 # Before that, matplotlib.pyplot should be installed and imported::
 
-try:
-  import matplotlib.pyplot as plt
-except:
-  warning("Matplotlib not imported")
+python_visualisation = False
+if python_visualisation:
+    try:
+        import matplotlib.pyplot as plt
+    except:
+        warning("Matplotlib not imported")
+        python_visualisation = False    
 
-try:
-  from firedrake.pyplot import tripcolor, tricontour
-  fig, axes = plt.subplots()
-  colors = tripcolor(u, axes=axes)
-  fig.colorbar(colors)
-except Exception as e:
-  warning("Cannot plot figure. Error msg: '%s'" % e)
+    try:
+        from firedrake.pyplot import tripcolor, tricontour
+        fig, axes = plt.subplots()
+        colors = tripcolor(u, axes=axes)
+        fig.colorbar(colors)
+    except Exception as e:
+        warning("Cannot plot figure. Error msg: '%s'" % e)
 
-# The plotting functions in Firedrake mimic those of matplotlib; to produce a
-# contour plot instead of a pseudocolor plot, we can call
-# :func:`tricontour <firedrake.pyplot.tricontour>` instead::
+    # The plotting functions in Firedrake mimic those of matplotlib; to produce a
+    # contour plot instead of a pseudocolor plot, we can call
+    # :func:`tricontour <firedrake.pyplot.tricontour>` instead::
 
-try:
-  fig, axes = plt.subplots()
-  contours = tricontour(u, axes=axes)
-  fig.colorbar(contours)
-except Exception as e:
-  warning("Cannot plot figure. Error msg: '%s'" % e)
+    try:
+        fig, axes = plt.subplots()
+        contours = tricontour(u, axes=axes)
+        fig.colorbar(contours)
+    except Exception as e:
+        warning("Cannot plot figure. Error msg: '%s'" % e)
 
-# Don't forget to show the image::
+    # Don't forget to show the image::
 
-try:
-  plt.show()
-except Exception as e:
-  warning("Cannot show figure. Error msg: '%s'" % e)
+    try:
+        plt.show()
+    except Exception as e:
+        warning("Cannot show figure. Error msg: '%s'" % e)
 
-# Alternatively, since we have an analytic solution, we can check the
-# :math:`L_2` norm of the error in the solution::
 
-f.interpolate(cos(x*pi*2)*cos(y*pi*2))
-abs_error = sqrt(assemble(dot(u - f, u - f) * dx))
-rel_error = abs_error / sqrt(assemble(dot(f, f) * dx))
-print(f'\nL2 error: {abs_error}')
-print(f'Relative L2 error: {rel_error}')
-
-# A python script version of this demo can be found :demo:`here <helmholtz.py>`.
