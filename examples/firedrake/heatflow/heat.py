@@ -26,7 +26,7 @@ bc_val=Constant(0.0)
 bc = DirichletBC(V, bc_val, (1, 3))
 
 t_init = 0.0
-t_max = 2.0
+t_max = 4.0
 params = {'ts_type': 'bdf',
           'ts_bdf_order': 2,
           'ts_dt': 0.01,
