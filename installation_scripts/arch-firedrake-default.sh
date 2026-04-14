@@ -5,15 +5,17 @@
 #   PETSc configuration script for the default Firedrake configuration that works on my M2 MacBook Pro.
 #   where I have already installed apma4302-pkgs-opt
 #   This is intended to be run from the root of the PETSc source directory, and will create a new PETSc configuration in a subdirectory called `arch-firedrake-default`.
-#   This script assumes that the following dependencies are installed via Homebrew:
+#   First check to see if the following dependences are already installed in homebrew
+#     - gcc
+#     - open-mpi
+#     - hdf5-mpi
+#   if not install them along with the following dependencies:
 #     - bison
 #     - fftw
 #     - hwloc
-#     - hdf5-mpi
-#     - gcc
-#     - open-mpi
 #   If you have not installed these dependencies, you can do so with the following command:
-#     brew install bison fftw hwloc hdf5-mpi gcc open-mpi
+#     export HOMEBREW_NO_AUTO_UPDATE=1
+#     brew install bison fftw hwloc 
 #   Additional packages will be downloaded and built automatically by the PETSc configuration script.
 #   Note that this script is intended to be a starting point for a PETSc configuration that works well with Firedrake. Depending on your specific needs and system configuration, 
 #   you may need to modify the options passed to the `configure` script.
