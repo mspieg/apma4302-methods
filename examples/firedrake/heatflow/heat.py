@@ -22,7 +22,8 @@ f.interpolate(1.0)
 
 F = inner(u_dot, v) * dx + inner(grad(u), grad(v)) * dx - f * v * dx
 
-bc_val=Constant(0.0)
+# set Dirichlet boundary conditions on left and bottom boundaries
+bc_val = Constant(0.0)
 bc = DirichletBC(V, bc_val, (1, 3))
 
 t_init = 0.0
