@@ -79,7 +79,7 @@ f = Function(V)
 x, y = SpatialCoordinate(mesh)
 
 # exponent in non-linear term
-n = 1
+n = 4
 f.interpolate((8*pi*pi)*sin(x*pi*2)*sin(y*pi*2) + (sin(x*pi*2) * sin(y*pi*2))**n)
 
 # We can now define the weak form of the residual function F(u)::
@@ -91,8 +91,8 @@ bc = DirichletBC(V, 0, "on_boundary")
 
 # set the petsc solver parameters to use the nonlinear solver SNES with a direct LU factorisation preconditioner. We also set some additional parameters to monitor the convergence of the nonlinear and linear solvers and to set the relative tolerance for convergence. For more details on how to specify solver parameters, see the section of the manual on :doc:`solving PDEs <../solving-interface>`.
 
-parameters = {'ksp_type': 'preonly', 
-              'pc_type': 'lu',
+parameters = {'ksp_type': 'cg', 
+              'pc_type': 'mg',
               'pc_factor_mat_solver_type': 'mumps',
               'snes_type': 'newtonls',
               'snes_monitor': None,
